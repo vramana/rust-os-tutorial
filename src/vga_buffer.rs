@@ -6,6 +6,13 @@ use core::fmt::Debug;
 use core::marker::Copy;
 use core::prelude::rust_2024::derive;
 
+use core::ptr::NonNull;
+
+use lazy_static::lazy_static;
+use spin::Mutex;
+use volatile::access::ReadWrite;
+use volatile::{VolatilePtr, VolatileRef};
+
 #[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
@@ -41,9 +48,6 @@ impl ColorCode {
 // repr(transparent) doesn't work here. According to documentation, it can only
 // used on struct or single variant enum with a single non zero sized field
 // https://doc.rust-lang.org/nomicon/other-reprs.html?highlight=align#reprtransparent
-//
-// Here we have 2 non-zero fields. repr(C) is the better choice.
-// TODO Why should we not use repr(C) everywhere?
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(C)]
 struct SreeenChar {
@@ -56,13 +60,28 @@ const BUFFER_WITDH: usize = 80;
 
 #[repr(transparent)]
 pub struct Buffer {
-    chars: [[SreeenChar; BUFFER_WITDH]; BUFFER_HEIGHT],
+    chars: VolatilePtr<'static, [SreeenChar], ReadWrite>,
 }
 
 pub struct Writer {
-    pub column_position: usize,
-    pub color_code: ColorCode,
-    pub buffer: &'static mut Buffer,
+    column_position: usize,
+    color_code: ColorCode,
+    buffer: &'static mut Buffer,
+}
+
+lazy_static! {
+    pub static ref WRITER: Mutex<Writer> = Mutex::new(Writer {
+        column_position: 0,
+        color_code: ColorCode::new(Color::Yellow, Color::Black),
+        buffer: unsafe {
+            &Buffer {
+                chars: VolatilePtr::new(NonNull::from(core::slice::from_raw_parts(
+                    0xb8000 as *mut SreeenChar,
+                    80 * 25,
+                ))),
+            }
+        },
+    });
 }
 
 impl Writer {
@@ -74,10 +93,15 @@ impl Writer {
                     self.newline()
                 }
 
-                self.buffer.chars[BUFFER_HEIGHT - 1][self.column_position] = SreeenChar {
+                let row = 0;
+                let position = row * BUFFER_WITDH + self.column_position;
+
+                let row = self.buffer.chars.index(position);
+
+                row.write(SreeenChar {
                     ascii_char: byte,
                     color_code: self.color_code,
-                };
+                });
 
                 self.column_position += 1;
             }
@@ -94,18 +118,31 @@ impl Writer {
     }
 
     fn newline(&mut self) {
-        for row in 1..BUFFER_HEIGHT {
-            for column in 0..BUFFER_WITDH {
-                self.buffer.chars[row - 1][column] = self.buffer.chars[row][column]
-            }
-        }
-        self.clear_row(BUFFER_HEIGHT - 1);
-        self.column_position = 0
+        // for row in 1..BUFFER_HEIGHT {
+        //     for column in 0..BUFFER_WITDH {
+        //         let ch = self.buffer.chars[row][column].as_ptr().read();
+        //         self.buffer.chars[row - 1][column].as_mut_ptr().write(ch);
+        //     }
+        // }
+        // self.clear_row(BUFFER_HEIGHT - 1);
+        // self.column_position = 0
     }
 
     fn clear_row(&mut self, row: usize) {
-        for column in 0..BUFFER_WITDH {
-            self.buffer.chars[row][column].ascii_char = b' ';
-        }
+        // for column in 0..BUFFER_WITDH {
+        //     self.buffer.chars[row][column]
+        //         .as_mut_ptr()
+        //         .write(SreeenChar {
+        //             ascii_char: b' ',
+        //             color_code: self.color_code,
+        //         });
+        // }
     }
+}
+
+static HELLO_WORLD: &str = "Hello, world!";
+
+
+pub fn print_something() {
+    WRITER.lock().write_string(HELLO_WORLD);
 }
