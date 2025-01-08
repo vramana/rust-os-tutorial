@@ -1,3 +1,4 @@
+// Rust 2024 edition requires import these derive traits
 use core::clone::Clone;
 use core::cmp::Eq;
 use core::cmp::PartialEq;
@@ -37,6 +38,12 @@ impl ColorCode {
     }
 }
 
+// repr(transparent) doesn't work here. According to documentation, it can only
+// used on struct or single variant enum with a single non zero sized field
+// https://doc.rust-lang.org/nomicon/other-reprs.html?highlight=align#reprtransparent
+//
+// Here we have 2 non-zero fields. repr(C) is the better choice.
+// TODO Why should we not use repr(C) everywhere?
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(C)]
 struct SreeenChar {
@@ -71,11 +78,34 @@ impl Writer {
                     ascii_char: byte,
                     color_code: self.color_code,
                 };
+
+                self.column_position += 1;
             }
         }
     }
 
-    fn newline(&mut self) {}
+    pub fn write_string(&mut self, string: &str) {
+        for b in string.bytes() {
+            match b {
+                0x20..0x7e | b'\n' => self.write_byte(b),
+                _ => self.write_byte(0xfe),
+            }
+        }
+    }
 
-    fn clear(&mut self) {}
+    fn newline(&mut self) {
+        for row in 1..BUFFER_HEIGHT {
+            for column in 0..BUFFER_WITDH {
+                self.buffer.chars[row - 1][column] = self.buffer.chars[row][column]
+            }
+        }
+        self.clear_row(BUFFER_HEIGHT - 1);
+        self.column_position = 0
+    }
+
+    fn clear_row(&mut self, row: usize) {
+        for column in 0..BUFFER_WITDH {
+            self.buffer.chars[row][column].ascii_char = b' ';
+        }
+    }
 }
