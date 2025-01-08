@@ -1,3 +1,10 @@
+use core::clone::Clone;
+use core::cmp::Eq;
+use core::cmp::PartialEq;
+use core::fmt::Debug;
+use core::marker::Copy;
+use core::prelude::rust_2024::derive;
+
 #[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
@@ -22,31 +29,53 @@ pub enum Color {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(transparent)]
-struct ColorCode(u8)
+pub struct ColorCode(u8);
 
 impl ColorCode {
-    fn new(foreground: Color, background: Color) -> ColorCode {
+    pub fn new(foreground: Color, background: Color) -> ColorCode {
         ColorCode((background as u8) << 4 | (foreground as u8))
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[repr(transparent)]
+#[repr(C)]
 struct SreeenChar {
     ascii_char: u8,
     color_code: ColorCode,
 }
 
-const BUFFER_HEIGHT: u8 = 25
-const BUFFER_WITDH: u8 = 80
+const BUFFER_HEIGHT: usize = 25;
+const BUFFER_WITDH: usize = 80;
 
 #[repr(transparent)]
-struct Buffer {
-    chars: [[SreeenChar; BUFFER_WITDH]; BUFFER_HEIGHT]
+pub struct Buffer {
+    chars: [[SreeenChar; BUFFER_WITDH]; BUFFER_HEIGHT],
 }
 
 pub struct Writer {
-    column_position: usize,
-    color_code: ColorCode,
-    buffer: &'static mut Buffer
+    pub column_position: usize,
+    pub color_code: ColorCode,
+    pub buffer: &'static mut Buffer,
+}
+
+impl Writer {
+    pub fn write_byte(&mut self, byte: u8) {
+        match byte {
+            b'\n' => self.newline(),
+            _ => {
+                if self.column_position >= BUFFER_WITDH {
+                    self.newline()
+                }
+
+                self.buffer.chars[BUFFER_HEIGHT - 1][self.column_position] = SreeenChar {
+                    ascii_char: byte,
+                    color_code: self.color_code,
+                };
+            }
+        }
+    }
+
+    fn newline(&mut self) {}
+
+    fn clear(&mut self) {}
 }
