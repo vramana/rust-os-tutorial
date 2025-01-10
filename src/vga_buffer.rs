@@ -11,7 +11,7 @@ use core::ptr::NonNull;
 use lazy_static::lazy_static;
 use spin::Mutex;
 use volatile::access::ReadWrite;
-use volatile::VolatilePtr;
+use volatile::VolatileRef;
 
 #[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -60,7 +60,7 @@ const BUFFER_WITDH: usize = 80;
 
 #[repr(transparent)]
 pub struct Buffer {
-    chars: VolatilePtr<'static, [SreeenChar], ReadWrite>,
+    chars: VolatileRef<'static, [SreeenChar], ReadWrite>,
 }
 
 pub struct Writer {
@@ -69,17 +69,16 @@ pub struct Writer {
     buffer: Buffer,
 }
 
-// TODO I am not sure whether writer is Send or not. But Mutex requires Send trait on Writer
-unsafe impl Send for Writer {}
-
 lazy_static! {
     pub static ref WRITER: Mutex<Writer> = Mutex::new(Writer {
         column_position: 0,
         color_code: ColorCode::new(Color::Yellow, Color::Black),
         buffer: unsafe {
             Buffer {
-                chars: VolatilePtr::<'static, [SreeenChar]>::new(NonNull::from(
-                    core::slice::from_raw_parts(0xb8000 as *const SreeenChar, 80 * 25),
+                chars: VolatileRef::new(NonNull::from(
+                    // What' more appropriate *mut ScreenChar or *const ScreenChar? Both works here
+                    // Is the check suppressed due to unsafe block?
+                    core::slice::from_raw_parts(0xb8000 as *mut SreeenChar, 80 * 25),
                 )),
             }
         },
@@ -99,10 +98,10 @@ impl Writer {
                     self.newline()
                 }
 
-                let row = 0;
-                let position = get_buffer_index(row, self.column_position);
+                let last_row = BUFFER_HEIGHT - 1;
+                let position = get_buffer_index(last_row, self.column_position);
 
-                let row = self.buffer.chars.index(position);
+                let row = self.buffer.chars.as_mut_ptr().index(position);
 
                 row.write(SreeenChar {
                     ascii_char: byte,
@@ -127,8 +126,12 @@ impl Writer {
         for row in 1..BUFFER_HEIGHT {
             for column in 0..BUFFER_WITDH {
                 let position = get_buffer_index(row, column);
-                let ch = self.buffer.chars.index(position).read();
-                self.buffer.chars.index(position - BUFFER_WITDH).write(ch);
+                let ch = self.buffer.chars.as_ptr().index(position).read();
+                self.buffer
+                    .chars
+                    .as_mut_ptr()
+                    .index(position - BUFFER_WITDH)
+                    .write(ch);
             }
         }
         self.clear_row(BUFFER_HEIGHT - 1);
@@ -138,15 +141,19 @@ impl Writer {
     fn clear_row(&mut self, row: usize) {
         for column in 0..BUFFER_WITDH {
             let position = get_buffer_index(row, column);
-            self.buffer.chars.index(position).write(SreeenChar {
-                ascii_char: b' ',
-                color_code: self.color_code,
-            });
+            self.buffer
+                .chars
+                .as_mut_ptr()
+                .index(position)
+                .write(SreeenChar {
+                    ascii_char: b' ',
+                    color_code: self.color_code,
+                });
         }
     }
 }
 
-static HELLO_WORLD: &str = "Hello, world!";
+static HELLO_WORLD: &str = "Hello, world!\n\nHello Sailor!";
 
 pub fn print_something() {
     // let mut vga_buffer = unsafe { &mut *(0xb8000 as *mut Buffer) };

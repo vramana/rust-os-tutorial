@@ -14,3 +14,9 @@ just build
 
 - What is repr(transparent)?
 - What is the functionality of bootimage? Re-implement it from scratch.
+
+
+## References
+
+- https://doc.rust-lang.org/nomicon/send-and-sync.html
+- https://os.phil-opp.com/
