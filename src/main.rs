@@ -3,14 +3,11 @@
 
 mod vga_buffer;
 use core::panic::PanicInfo;
-use core::slice;
-use vga_buffer::{Buffer, Color, ColorCode, Writer};
 
 #[panic_handler]
 fn panic(_info: &PanicInfo) -> ! {
     loop {}
 }
-
 
 #[unsafe(no_mangle)]
 pub extern "C" fn _start() -> ! {
