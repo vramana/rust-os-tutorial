@@ -50,7 +50,7 @@ impl ColorCode {
 // https://doc.rust-lang.org/nomicon/other-reprs.html?highlight=align#reprtransparent
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(C)]
-struct ScreenChar {
+struct SreeenChar {
     ascii_char: u8,
     color_code: ColorCode,
 }
@@ -62,7 +62,7 @@ const BUFFER_WITDH: usize = 80;
 pub struct Buffer {
     // TODO Modify this to [[ScreenChar]] instead of [ScreenChar] since it simplifies the writer
     // code.
-    chars: VolatileRef<'static, [ScreenChar], ReadWrite>,
+    chars: VolatileRef<'static, [SreeenChar], ReadWrite>,
 }
 
 pub struct Writer {
@@ -70,8 +70,6 @@ pub struct Writer {
     color_code: ColorCode,
     buffer: Buffer,
 }
-
-static mut VGA_BUFFER_ADDRESS: *mut ScreenChar = 0xb8000 as *mut ScreenChar;
 
 lazy_static! {
     pub static ref WRITER: Mutex<Writer> = Mutex::new(Writer {
@@ -82,7 +80,9 @@ lazy_static! {
                 chars: VolatileRef::new(NonNull::from(
                     // What' more appropriate *mut ScreenChar or *const ScreenChar? Both works here
                     // Is the check suppressed due to unsafe block?
-                    core::slice::from_raw_parts(VGA_BUFFER_ADDRESS, 80 * 25),
+                    //
+                    // TODO Is there no way to extract this address into static variable?
+                    core::slice::from_raw_parts(0xb8000 as *mut SreeenChar, 80 * 25),
                 )),
             }
         },
@@ -107,7 +107,7 @@ impl Writer {
 
                 let row = self.buffer.chars.as_mut_ptr().index(position);
 
-                row.write(ScreenChar {
+                row.write(SreeenChar {
                     ascii_char: byte,
                     color_code: self.color_code,
                 });
@@ -149,7 +149,7 @@ impl Writer {
                 .chars
                 .as_mut_ptr()
                 .index(position)
-                .write(ScreenChar {
+                .write(SreeenChar {
                     ascii_char: b' ',
                     color_code: self.color_code,
                 });
