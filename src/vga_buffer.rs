@@ -2,6 +2,7 @@
 use core::clone::Clone;
 use core::cmp::Eq;
 use core::cmp::PartialEq;
+use core::fmt;
 use core::fmt::Debug;
 use core::marker::Copy;
 use core::prelude::rust_2024::derive;
@@ -60,8 +61,7 @@ const BUFFER_WITDH: usize = 80;
 
 #[repr(transparent)]
 pub struct Buffer {
-    // TODO Modify this to [[ScreenChar]] instead of [ScreenChar] since it simplifies the writer
-    // code.
+    // TODO Modify this to [[ScreenChar]] instead of [ScreenChar] since it simplifies the writer code.
     chars: VolatileRef<'static, [SreeenChar], ReadWrite>,
 }
 
@@ -157,8 +157,31 @@ impl Writer {
     }
 }
 
+impl fmt::Write for Writer {
+    fn write_str(&mut self, s: &str) -> fmt::Result {
+        self.write_string(s);
+        Ok(())
+    }
+}
+
 static HELLO_WORLD: &str = "Hello, world!\n\nHello Sailor!";
 
 pub fn print_something() {
     WRITER.lock().write_string(HELLO_WORLD);
+}
+
+#[macro_export]
+macro_rules! print {
+    ($($arg:tt)*) => ($crate::vga_buffer::_print(format_args!($($arg)*)));
+}
+
+#[macro_export]
+macro_rules! println {
+    () => ($crate::print!("\n"));
+    ($($arg:tt)*) => ($crate::print!("{}\n", format_args!($($arg)*)));
+}
+
+pub fn _print(args: fmt::Arguments) {
+    use core::fmt::Write;
+    WRITER.lock().write_fmt(args).unwrap();
 }
