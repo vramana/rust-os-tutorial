@@ -11,7 +11,6 @@ fn panic(_info: &PanicInfo) -> ! {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn _start() -> ! {
-    // let vga_buffer: *mut u8 = 0xb8000 as *mut u8;
     vga_buffer::print_something();
     loop {}
 }
