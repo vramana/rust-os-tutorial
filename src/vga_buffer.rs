@@ -60,6 +60,8 @@ const BUFFER_WITDH: usize = 80;
 
 #[repr(transparent)]
 pub struct Buffer {
+    // TODO Modify this to [[ScreenChar]] instead of [ScreenChar] since it simplifies the writer
+    // code.
     chars: VolatileRef<'static, [SreeenChar], ReadWrite>,
 }
 
@@ -130,7 +132,7 @@ impl Writer {
                 self.buffer
                     .chars
                     .as_mut_ptr()
-                    .index(position - BUFFER_WITDH)
+                    .index(get_buffer_index(row - 1, column))
                     .write(ch);
             }
         }
